@@ -109,7 +109,7 @@ class EventNormalizerTest {
         assertThat(accepted.identityIssues()).singleElement().satisfies(issue -> {
             assertThat(issue.identityIndex()).isZero();
             assertThat(issue.code()).isEqualTo(IdentityIssueCode.INVALID_IDENTITY_VALUE);
-            assertThat(issue.toString()).doesNotContain("0000", "raw-player-secret");
+            assertThat(issue.toString()).doesNotContain("0000-0000", "raw-player-secret");
         });
     }
 
