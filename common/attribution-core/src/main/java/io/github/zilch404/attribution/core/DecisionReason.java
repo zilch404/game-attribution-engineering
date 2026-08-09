@@ -1,0 +1,14 @@
+package io.github.zilch404.attribution.core;
+
+public enum DecisionReason {
+    MATCHED,
+    NO_ELIGIBLE_CLICK,
+    LOOKUP_INCOMPLETE,
+    INDEX_NOT_READY,
+    NO_SUPPORTED_IDENTITY,
+    LOOKUP_TIMED_OUT,
+    LOOKUP_FAILED,
+    LOOKUP_PERMANENT_FAILURE,
+    CANDIDATES_TRUNCATED,
+    CONFLICTING_DUPLICATE
+}
