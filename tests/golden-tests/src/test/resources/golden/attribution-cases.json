@@ -1,0 +1,243 @@
+[
+  {
+    "name": "strong-identity-beats-newer-weak-identity",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"click_id": "token-1", "device_id": "device-1"},
+    "identityPriority": ["click_id", "device_id"],
+    "readStatus": "AUTHORITATIVE",
+    "clicks": [
+      {
+        "clickId": "strong-click",
+        "clickTime": "2026-01-07T23:50:00Z",
+        "identities": {"click_id": "token-1"},
+        "platform": "ocean-engine"
+      },
+      {
+        "clickId": "weak-click",
+        "clickTime": "2026-01-07T23:59:00Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      }
+    ],
+    "expected": {
+      "outcome": "ATTRIBUTED",
+      "status": "FINAL",
+      "matchedClickId": "strong-click",
+      "reason": "MATCHED"
+    }
+  },
+  {
+    "name": "latest-touch-within-same-identity-rank",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"device_id": "device-1"},
+    "identityPriority": ["device_id"],
+    "readStatus": "AUTHORITATIVE",
+    "clicks": [
+      {
+        "clickId": "older-click",
+        "clickTime": "2026-01-07T22:00:00Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      },
+      {
+        "clickId": "newer-click",
+        "clickTime": "2026-01-07T23:59:00Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      }
+    ],
+    "expected": {
+      "outcome": "ATTRIBUTED",
+      "status": "FINAL",
+      "matchedClickId": "newer-click",
+      "reason": "MATCHED"
+    }
+  },
+  {
+    "name": "lookback-boundary-is-inclusive",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"device_id": "device-1"},
+    "identityPriority": ["device_id"],
+    "readStatus": "AUTHORITATIVE",
+    "clicks": [
+      {
+        "clickId": "boundary-click",
+        "clickTime": "2026-01-01T00:00:00Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      }
+    ],
+    "expected": {
+      "outcome": "ATTRIBUTED",
+      "status": "FINAL",
+      "matchedClickId": "boundary-click",
+      "reason": "MATCHED"
+    }
+  },
+  {
+    "name": "outside-window-and-future-clicks-are-ineligible",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"device_id": "device-1"},
+    "identityPriority": ["device_id"],
+    "readStatus": "AUTHORITATIVE",
+    "clicks": [
+      {
+        "clickId": "too-old",
+        "clickTime": "2025-12-31T23:59:59.999Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      },
+      {
+        "clickId": "future",
+        "clickTime": "2026-01-08T00:00:00.001Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      }
+    ],
+    "expected": {
+      "outcome": "ORGANIC",
+      "status": "FINAL",
+      "matchedClickId": null,
+      "reason": "NO_ELIGIBLE_CLICK"
+    }
+  },
+  {
+    "name": "same-time-uses-stable-click-id-tie-break",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"device_id": "device-1"},
+    "identityPriority": ["device_id"],
+    "readStatus": "AUTHORITATIVE",
+    "clicks": [
+      {
+        "clickId": "click-b",
+        "clickTime": "2026-01-07T23:59:00Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      },
+      {
+        "clickId": "click-a",
+        "clickTime": "2026-01-07T23:59:00Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      }
+    ],
+    "expected": {
+      "outcome": "ATTRIBUTED",
+      "status": "FINAL",
+      "matchedClickId": "click-a",
+      "reason": "MATCHED"
+    }
+  },
+  {
+    "name": "exact-replay-is-idempotent",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"device_id": "device-1"},
+    "identityPriority": ["device_id"],
+    "readStatus": "AUTHORITATIVE",
+    "clicks": [
+      {
+        "clickId": "duplicate",
+        "clickTime": "2026-01-07T23:59:00Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      },
+      {
+        "clickId": "duplicate",
+        "clickTime": "2026-01-07T23:59:00Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      }
+    ],
+    "expected": {
+      "outcome": "ATTRIBUTED",
+      "status": "FINAL",
+      "matchedClickId": "duplicate",
+      "reason": "MATCHED"
+    }
+  },
+  {
+    "name": "authoritative-empty-is-organic",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"device_id": "device-1"},
+    "identityPriority": ["device_id"],
+    "readStatus": "AUTHORITATIVE",
+    "clicks": [],
+    "expected": {
+      "outcome": "ORGANIC",
+      "status": "FINAL",
+      "matchedClickId": null,
+      "reason": "NO_ELIGIBLE_CLICK"
+    }
+  },
+  {
+    "name": "partial-empty-is-unknown",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"device_id": "device-1"},
+    "identityPriority": ["device_id"],
+    "readStatus": "PARTIAL",
+    "clicks": [],
+    "expected": {
+      "outcome": "UNKNOWN",
+      "status": "RETRYABLE",
+      "matchedClickId": null,
+      "reason": "LOOKUP_INCOMPLETE"
+    }
+  },
+  {
+    "name": "index-not-ready-is-unknown",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"device_id": "device-1"},
+    "identityPriority": ["device_id"],
+    "readStatus": "INDEX_NOT_READY",
+    "clicks": [],
+    "expected": {
+      "outcome": "UNKNOWN",
+      "status": "RETRYABLE",
+      "matchedClickId": null,
+      "reason": "INDEX_NOT_READY"
+    }
+  },
+  {
+    "name": "truncated-candidate-is-only-provisional",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"device_id": "device-1"},
+    "identityPriority": ["device_id"],
+    "readStatus": "TRUNCATED",
+    "clicks": [
+      {
+        "clickId": "visible-candidate",
+        "clickTime": "2026-01-07T23:59:00Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt"
+      }
+    ],
+    "expected": {
+      "outcome": "ATTRIBUTED",
+      "status": "PROVISIONAL",
+      "matchedClickId": "visible-candidate",
+      "reason": "MATCHED"
+    }
+  },
+  {
+    "name": "ineligible-click-does-not-match",
+    "activationTime": "2026-01-08T00:00:00Z",
+    "activationIdentities": {"device_id": "device-1"},
+    "identityPriority": ["device_id"],
+    "readStatus": "AUTHORITATIVE",
+    "clicks": [
+      {
+        "clickId": "fraud-click",
+        "clickTime": "2026-01-07T23:59:00Z",
+        "identities": {"device_id": "device-1"},
+        "platform": "gdt",
+        "eligible": false
+      }
+    ],
+    "expected": {
+      "outcome": "ORGANIC",
+      "status": "FINAL",
+      "matchedClickId": null,
+      "reason": "NO_ELIGIBLE_CLICK"
+    }
+  }
+]

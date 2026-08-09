@@ -1,6 +1,6 @@
-# Big Data Roadmap：游戏买量归因实战路线
+# Game Attribution Engineering
 
-这是一个以真实业务问题驱动的大数据学习仓库。目标不是把所有大数据组件学一遍，而是围绕游戏发行的买量归因场景，逐步构建一套可运行、可重放、可审计、可修正的实时数据系统。
+游戏买量归因的大数据工程学习与实现仓库。目标不是把所有大数据组件学一遍，而是围绕游戏发行的买量归因场景，逐步构建一套可运行、可重放、可审计、可修正的实时数据系统。
 
 目标技术栈：
 
@@ -11,6 +11,25 @@
 - Fluss 负责在线点击索引、当前归因映射和在线维表。
 - Paimon 负责完整历史、审计、回放与批量重算。
 - StarRocks 负责实时分析、漏斗、收入与 ROAS 报表。
+
+## 当前实现
+
+第一版实现聚焦可验证的归因正确性，不包含空壳连接器或无法运行的生产 Main：
+
+- `attribution-model`：不含原始 PII、但仍需按敏感数据治理的统一点击、激活和身份模型；
+- `attribution-core`：纯 Java、确定性的 7 天 last-touch 归因核心；
+- `click-index-spi`：面向 Fluss 的存储无关异步候选查询接口；
+- `normalize-job`：保留事件关联键的身份规范化、作用域哈希和 Flink Side Output 算子；
+- `attribution-job`：携带当前决策的 Flink Async I/O 适配器和强制结果分流；
+- `golden-tests`：覆盖候选顺序、边界、重复、失败和稳定 tie-break 的黄金用例。
+
+当前规范化器使用 tenant/game/app scoped SHA-256 作为可运行占位实现，输出带 `normalization_version`。它仍属于 pseudonymous data；生产接入真实玩家标识前，应替换为由运行时密钥服务提供的 HMAC，并携带 `key_version`。
+
+```bash
+./mvnw -B -ntp clean verify
+```
+
+更多设计约束见 [`docs/adr/0001-module-boundaries.md`](docs/adr/0001-module-boundaries.md)、[`docs/event-contract/v1.md`](docs/event-contract/v1.md) 和 [`docs/attribution-rules/v1-last-touch.md`](docs/attribution-rules/v1-last-touch.md)。
 
 ## 业务目标
 
@@ -45,7 +64,7 @@ flowchart TD
     E <--> F
     E --> R["Kafka 归因结果"]
     R --> P
-    R --> S["StarRocks 实时分析"]
+    R -->|Routine Load| S["StarRocks 实时分析"]
 ```
 
 ### 组件边界
@@ -110,10 +129,13 @@ Fluss 保存的是窄索引。完整广告请求、平台回调和扩展字段�
 
 - 激活先进入分钟级 grace，且等待点击索引的 ready watermark；
 - Lookup 超时或存储不可用只能进入 `RETRY / UNKNOWN`，不能判为自然量；
+- 不支持的身份、冲突数据和永久查询错误进入 `QUARANTINE`，不能无限重试；
 - grace 后输出 `FINAL_NORMAL`；
 - 超晚点击通过 `activation_probe` 触发 `CORRECTION`；
 - Paimon 每小时或每天对近 7～10 天批量重算，作为最终正确性兜底；
 - 完整 decision history 进入 Kafka/Paimon，Fluss 和 StarRocks 只物化当前版本。
+
+`attribution-job` 的 Async I/O 输出必须立即经过路由算子：只有 `MATERIALIZE` 进入当前事实 Sink；`RETRY_ONLY`、`QUARANTINE` 和 `NOOP` 分别进入重试、隔离和审计 Side Output。Sink 仍应再次校验 disposition。
 
 ## 学习路线
 
@@ -191,10 +213,12 @@ Fluss 保存的是窄索引。完整广告请求、平台回调和扩展字段�
 
 - [ ] Duplicate Key、Primary Key 与 Aggregate 模型
 - [ ] Partition、Bucket、Sort Key 与 Prefix Index
-- [ ] Flink Connector、幂等 Upsert 和 Conditional Update
+- [ ] Kafka Routine Load、幂等 Upsert 和 Conditional Update
 - [ ] 物化视图、分区刷新和 Query Rewrite
 - [ ] 实时明细、小时/天聚合和查询优化
 - [ ] 点击、激活、注册、付费、退款和成本指标
+
+当前 Flink 2.2.1 基线不直接绑定 StarRocks Flink Connector。归因结果先写 Kafka，再由 StarRocks Routine Load 消费；待官方连接器明确支持该 Flink 版本后，再用集成测试评估替换。
 
 实战：构建以下数据集：
 
@@ -211,7 +235,7 @@ Fluss 保存的是窄索引。完整广告请求、平台回调和扩展字段�
 - [ ] `attribution-job`：短 grace、异步 Lookup、候选排序和归因决策
 - [ ] `correction-job`：处理超晚点击、规则重算和人工修正
 - [ ] `event-enrichment-job`：为注册、付费等事件补充安装归因
-- [ ] `starrocks-sink-job`：隔离分析存储的反压和升级
+- [ ] `starrocks-loading`：Routine Load、目标表 DDL 与版本化更新配置
 - [ ] `reconciliation-job`：从 Paimon 批量对账和生成修正
 
 ### 阶段 8：双跑验证与生产化
@@ -237,34 +261,28 @@ Fluss 保存的是窄索引。完整广告请求、平台回调和扩展字段�
 - [ ] StarRocks 能稳定查询实时漏斗、收入和 ROAS
 - [ ] 任意一个分析 Sink 故障不会拖垮核心归因链路
 
-## 推荐仓库结构
+## 当前仓库结构
 
 ```text
 .
-├── docs/
-│   ├── architecture/       # 架构与数据流
-│   ├── event-contract/     # 事件字典与 Schema
-│   └── attribution-rules/  # 规则、版本与边界案例
+├── common/
+│   ├── model/                # 无基础设施依赖的事件模型
+│   └── attribution-core/     # 确定性 last-touch 纯函数
+├── connectors/
+│   └── click-index-spi/      # 存储无关的异步候选查询端口
 ├── flink-jobs/
-│   ├── normalize/
-│   ├── click-indexer/
-│   ├── attribution/
-│   ├── correction/
-│   ├── event-enrichment/
-│   └── reconciliation/
-├── sql/
-│   ├── fluss/
-│   ├── paimon/
-│   └── starrocks/
+│   ├── normalize-job/        # 身份规范化与坏数据 Side Output
+│   └── attribution-job/      # Flink Async I/O 适配器
 ├── tests/
-│   ├── golden-cases/
-│   ├── integration/
-│   └── reconciliation/
-├── tools/                  # Python 数据生成与对账脚本
-├── docker/                 # 本地实验环境
-├── dashboards/             # 监控与业务看板
-└── resources/              # 官方资料索引
+│   └── golden-tests/         # 固定时间、可重放的规则样本
+├── docs/
+│   ├── adr/
+│   ├── event-contract/
+│   └── attribution-rules/
+└── .github/workflows/ci.yml
 ```
+
+Kafka、Fluss、Paimon、StarRocks、CDC、修正作业和本地全栈环境会在对应阶段加入；当前不创建没有实现和测试的空模块。
 
 ## 官方资料
 

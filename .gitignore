@@ -64,6 +64,21 @@ dmypy.json
 .vscode/
 *.swp
 *.swo
+*.iml
+
+# Java and Maven
+target/
+*.class
+*.jar
+*.war
+*.ear
+.classpath
+.project
+.settings/
+.factorypath
+dependency-reduced-pom.xml
+release.properties
+pom.xml.releaseBackup
 
 # OS files
 .DS_Store
