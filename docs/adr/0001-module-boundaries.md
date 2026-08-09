@@ -18,7 +18,9 @@ flowchart TD
     SPI --> MODEL
     JOB["attribution-job"] --> CORE
     JOB --> SPI
+    KAFKA["kafka-ingress"] --> MODEL
     NORMALIZE["normalize-job"] --> MODEL
+    NORMALIZE --> KAFKA
 ```
 
 1. `attribution-model` 只包含 JDK 类型和不可变领域对象，不依赖 Flink、Fluss 或 JSON 库。
@@ -27,6 +29,7 @@ flowchart TD
 4. `attribution-job` 使用 Flink Async I/O 调用外部索引，输入同时携带激活和当前决策；Flink State 只保留分钟级待定激活。
 5. Fluss 保存 7～10 天窄点击索引；Paimon 保存完整事实；StarRocks 只消费归因结果。
 6. Async I/O 后强制分流：只有 `MATERIALIZE` 进入事实 Sink，`RETRY_ONLY`、`QUARANTINE` 和 `NOOP` 进入各自 Side Output。
+7. `kafka-ingress` 只捕获 Source 和 broker 元数据；JSON 与身份标准化由 `normalize-job` 完成，详见 ADR 0002。
 
 ## 版本基线
 

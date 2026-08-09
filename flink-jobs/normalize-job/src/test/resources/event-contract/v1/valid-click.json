@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "event_id": "evt_v1_click-1",
+  "event_type": "click",
+  "event_time": 1786200000000,
+  "ingest_time": 1786200001000,
+  "tenant_id": "tenant",
+  "game_id": "game",
+  "app_id": "app",
+  "source_system": "gdt_click_collector",
+  "client_platform": "android",
+  "payload": {
+    "click_id": "clk_v1_click-1",
+    "ad_platform": "gdt",
+    "identities": [
+      {"type": "oaid", "value": "A0-B1"},
+      {"type": "openid", "value": "User-Token"}
+    ],
+    "campaign": {
+      "account_id": "account-1",
+      "campaign_id": "campaign-1",
+      "ad_group_id": "group-1",
+      "creative_id": "creative-1"
+    },
+    "eligible": true
+  }
+}

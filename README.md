@@ -14,22 +14,25 @@
 
 ## 当前实现
 
-第一版实现聚焦可验证的归因正确性，不包含空壳连接器或无法运行的生产 Main：
+当前实现已经包含两个可独立验收的垂直切片，不包含空壳连接器或无法运行的生产 Main：
 
-- `attribution-model`：不含原始 PII、但仍需按敏感数据治理的统一点击、激活和身份模型；
+- `attribution-model`：不含原始 PII、带完整 source position 和身份版本的标准事件，以及供归因核心使用的窄模型；
 - `attribution-core`：纯 Java、确定性的 7 天 last-touch 归因核心；
 - `click-index-spi`：面向 Fluss 的存储无关异步候选查询接口；
-- `normalize-job`：保留事件关联键的身份规范化、作用域哈希和 Flink Side Output 算子；
+- `kafka-ingress`：Flink 2.2 Kafka Source、显式重放起点和完整 `ConsumerRecord` 元数据适配；
+- `normalize-job`：click/activation v1 严格 JSON 契约、可信身份策略、事件级标准化、事件时间保真和坏数据 Side Output；
 - `attribution-job`：携带当前决策的 Flink Async I/O 适配器和强制结果分流；
-- `golden-tests`：覆盖候选顺序、边界、重复、失败和稳定 tie-break 的黄金用例。
+- `golden-tests`：覆盖候选顺序、边界、重复、失败和稳定 tie-break 的归因黄金用例。
 
-当前规范化器使用 tenant/game/app scoped SHA-256 作为可运行占位实现，输出带 `normalization_version`。它仍属于 pseudonymous data；生产接入真实玩家标识前，应替换为由运行时密钥服务提供的 HMAC，并携带 `key_version`。
+Raw Kafka value 可以包含受限的原始身份，但标准事件只输出排序后的 scoped hash、`normalization_version` 和 `key_version`。当前规范化器使用 tenant/game/app scoped SHA-256 作为可运行占位实现；它仍属于 pseudonymous data，生产接入真实玩家标识前必须替换为由运行时密钥服务提供的 HMAC。
+
+当前 Kafka 切片只实现 Source、标准化流和隔离 Side Output。标准事件/隔离 Kafka Sink、事务提交和部署 Main 是下一步，不在本次用假实现占位。
 
 ```bash
 ./mvnw -B -ntp clean verify
 ```
 
-更多设计约束见 [`docs/adr/0001-module-boundaries.md`](docs/adr/0001-module-boundaries.md)、[`docs/event-contract/v1.md`](docs/event-contract/v1.md) 和 [`docs/attribution-rules/v1-last-touch.md`](docs/attribution-rules/v1-last-touch.md)。
+更多设计约束见 [`docs/adr/0001-module-boundaries.md`](docs/adr/0001-module-boundaries.md)、[`docs/adr/0002-kafka-ingress-and-replay.md`](docs/adr/0002-kafka-ingress-and-replay.md)、[`docs/event-contract/v1.md`](docs/event-contract/v1.md) 和 [`docs/attribution-rules/v1-last-touch.md`](docs/attribution-rules/v1-last-touch.md)。
 
 ## 业务目标
 
@@ -56,11 +59,12 @@
 
 ```mermaid
 flowchart TD
-    A["广告平台 / 游戏 SDK"] --> K["Kafka 原始事件"]
+    A["广告平台 / 游戏 SDK"] --> K["Kafka Raw"]
     K --> N["Flink 标准化"]
-    N --> P["Paimon 完整事实"]
-    N --> F["Fluss 在线索引"]
-    N --> E["Flink 归因引擎"]
+    N --> C["Kafka Standard"]
+    C --> P["Paimon 完整事实"]
+    C --> F["Fluss 在线索引"]
+    C --> E["Flink 归因引擎"]
     E <--> F
     E --> R["Kafka 归因结果"]
     R --> P
@@ -82,7 +86,7 @@ flowchart TD
 
 ### 事件契约
 
-所有事件至少包含：
+标准事件至少包含：
 
 ```text
 event_id
@@ -94,7 +98,7 @@ platform / channel
 click_id / trace_id / install_id
 identity_keys[]
 schema_version
-kafka_topic / partition / offset
+source_position(topic / partition / offset / record timestamp)
 ```
 
 需要明确区分：
@@ -269,7 +273,8 @@ Fluss 保存的是窄索引。完整广告请求、平台回调和扩展字段�
 │   ├── model/                # 无基础设施依赖的事件模型
 │   └── attribution-core/     # 确定性 last-touch 纯函数
 ├── connectors/
-│   └── click-index-spi/      # 存储无关的异步候选查询端口
+│   ├── click-index-spi/      # 存储无关的异步候选查询端口
+│   └── kafka-ingress/        # Kafka Source 与 ConsumerRecord 元数据
 ├── flink-jobs/
 │   ├── normalize-job/        # 身份规范化与坏数据 Side Output
 │   └── attribution-job/      # Flink Async I/O 适配器
@@ -282,7 +287,7 @@ Fluss 保存的是窄索引。完整广告请求、平台回调和扩展字段�
 └── .github/workflows/ci.yml
 ```
 
-Kafka、Fluss、Paimon、StarRocks、CDC、修正作业和本地全栈环境会在对应阶段加入；当前不创建没有实现和测试的空模块。
+Kafka 标准事件 Sink、Fluss、Paimon、StarRocks、CDC、修正作业和本地全栈环境会在对应阶段加入；当前不创建没有实现和测试的空模块。
 
 ## 官方资料
 

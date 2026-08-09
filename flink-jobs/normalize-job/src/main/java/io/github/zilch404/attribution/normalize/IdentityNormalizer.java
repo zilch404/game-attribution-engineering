@@ -12,8 +12,6 @@ import java.util.HexFormat;
 import java.util.Locale;
 
 public final class IdentityNormalizer implements Serializable {
-    public static final String NORMALIZATION_VERSION = "scoped-sha256-v1";
-
     public IdentityKey normalize(
             AttributionScope scope,
             String type,

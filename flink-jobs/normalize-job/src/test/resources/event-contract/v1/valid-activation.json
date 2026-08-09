@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "event_id": "evt_v1_activation-1",
+  "event_type": "activation",
+  "event_time": 1786200000000,
+  "ingest_time": 1786200001000,
+  "tenant_id": "tenant",
+  "game_id": "game",
+  "app_id": "app",
+  "source_system": "game_sdk",
+  "client_platform": "ios",
+  "payload": {
+    "activation_id": "act_v1_activation-1",
+    "install_id": "install-1",
+    "direct_click_id": "clk_v1_direct-1",
+    "identities": [
+      {"type": "idfa", "value": "AA-BB-CC"}
+    ]
+  }
+}
