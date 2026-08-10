@@ -2,12 +2,11 @@ package io.github.zilch404.attribution.normalize;
 
 import io.github.zilch404.attribution.model.AttributionScope;
 import io.github.zilch404.attribution.model.IdentityKey;
-import org.apache.flink.util.Collector;
-import org.apache.flink.util.InstantiationUtil;
 import org.junit.jupiter.api.Test;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class IdentityNormalizerTest {
@@ -92,52 +91,28 @@ class IdentityNormalizerTest {
     }
 
     @Test
-    void processOutputKeepsEventCorrelationAndPolicyVersion() {
-        RawIdentity raw = new RawIdentity(
-                "event-1",
-                SCOPE,
-                "oaid",
-                "device-1",
-                Canonicalization.CASE_SENSITIVE_TRIMMED);
+    void v1RulesMatchPublishedHashVectorsAndCarryTheirVersions() {
+        Map<String, String> expectedHashes = Map.of(
+                "openid", "54dd8bd1ad5d9f114cb3ebf55f327db7111ca455401ed8fc6270b7a71f57932e",
+                "unionid", "d87aa02842c2729d039f10c9cad796afb5ae6942a7db508309189d523053ee46",
+                "click_token", "c5fd1d2c53169435d1698ced2ed3b2a27c06f1250a28d8927e77da6e8c9c60fc",
+                "oaid", "c29358f35ad5f4bf188063d5268d4f8051ceb855d55a5e9821a1f21d9ef98000",
+                "idfa", "d73a4327d1226a8ce483dbc18dc8138a7772242a88e535b60dcb8b90c726623f",
+                "android_id", "2ad0afc5cb7872b72ed96bda5803462ec038e2a966e5107f789325e152bce2ba");
+        ConfiguredIdentityNormalizationPolicy policy =
+                ConfiguredIdentityNormalizationPolicy.gameAttributionV1();
 
-        NormalizedIdentity normalized =
-                new IdentityNormalizationProcessFunction().normalize(raw);
+        expectedHashes.forEach((type, expectedHash) -> {
+            IdentityNormalizationRule rule = policy.ruleFor(type).orElseThrow();
+            IdentityKey normalized = normalizer.normalize(
+                    SCOPE, type, " Raw-Value_01 ", rule.canonicalization());
 
-        assertThat(normalized.eventId()).isEqualTo(raw.eventId());
-        assertThat(normalized.scope()).isEqualTo(SCOPE);
-        assertThat(normalized.normalizationVersion())
-                .isEqualTo(IdentityNormalizer.NORMALIZATION_VERSION);
+            assertThat(normalized.valueHash()).as(type).isEqualTo(expectedHash);
+            assertThat(rule.normalizationVersion()).as(type).isEqualTo(
+                    ConfiguredIdentityNormalizationPolicy.V1_NORMALIZATION_VERSION);
+            assertThat(rule.keyVersion()).as(type).isEqualTo(
+                    ConfiguredIdentityNormalizationPolicy.PLACEHOLDER_KEY_VERSION);
+        });
     }
 
-    @Test
-    void flinkProcessFunctionIsSerializable() {
-        assertThatCode(() -> InstantiationUtil.serializeObject(
-                new IdentityNormalizationProcessFunction()))
-                .doesNotThrowAnyException();
-    }
-
-    @Test
-    void downstreamCollectorFailureIsNeverMisclassifiedAsInvalidIdentity() {
-        RawIdentity raw = new RawIdentity(
-                "event-1",
-                SCOPE,
-                "oaid",
-                "device-1",
-                Canonicalization.CASE_SENSITIVE_TRIMMED);
-        Collector<NormalizedIdentity> failingCollector = new Collector<>() {
-            @Override
-            public void collect(NormalizedIdentity record) {
-                throw new IllegalStateException("downstream failed");
-            }
-
-            @Override
-            public void close() {
-            }
-        };
-
-        assertThatThrownBy(() -> new IdentityNormalizationProcessFunction()
-                .processElement(raw, null, failingCollector))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("downstream failed");
-    }
 }

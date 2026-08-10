@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zilch404/game-attribution-engineering/raw-activation-v1.schema.json",
+  "title": "Game attribution raw activation v1",
+  "description": "Restricted raw ingress contract. Identity values are normalized and removed before standard output.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_type",
+    "event_time",
+    "ingest_time",
+    "tenant_id",
+    "game_id",
+    "app_id",
+    "source_system",
+    "client_platform",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "event_id": {"$ref": "#/$defs/id"},
+    "event_type": {"const": "activation"},
+    "event_time": {"$ref": "#/$defs/epochMillis"},
+    "ingest_time": {"$ref": "#/$defs/epochMillis"},
+    "tenant_id": {"$ref": "#/$defs/id"},
+    "game_id": {"$ref": "#/$defs/id"},
+    "app_id": {"$ref": "#/$defs/id"},
+    "source_system": {"$ref": "#/$defs/token"},
+    "client_platform": {"$ref": "#/$defs/token"},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activation_id", "install_id", "identities"],
+      "properties": {
+        "activation_id": {"$ref": "#/$defs/id"},
+        "install_id": {"$ref": "#/$defs/id"},
+        "direct_click_id": {"$ref": "#/$defs/id"},
+        "identities": {"$ref": "#/$defs/rawIdentities"}
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "token": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "epochMillis": {
+      "type": "integer",
+      "minimum": 946684800000,
+      "exclusiveMaximum": 4102444800000
+    },
+    "rawIdentities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "value"],
+        "properties": {
+          "type": {"$ref": "#/$defs/token"},
+          "value": {"type": "string", "minLength": 1, "maxLength": 1024}
+        }
+      }
+    }
+  }
+}

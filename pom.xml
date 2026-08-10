@@ -17,6 +17,7 @@
         <module>common/model</module>
         <module>common/attribution-core</module>
         <module>connectors/click-index-spi</module>
+        <module>connectors/kafka-ingress</module>
         <module>flink-jobs/normalize-job</module>
         <module>flink-jobs/attribution-job</module>
         <module>tests/golden-tests</module>
@@ -30,6 +31,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <flink.version>2.2.1</flink.version>
+        <flink.kafka.connector.version>5.0.0-2.2</flink.kafka.connector.version>
         <jackson.bom.version>2.18.9</jackson.bom.version>
         <junit.bom.version>5.14.4</junit.bom.version>
         <assertj.version>3.27.7</assertj.version>
@@ -44,6 +46,16 @@
                 <groupId>org.apache.flink</groupId>
                 <artifactId>flink-streaming-java</artifactId>
                 <version>${flink.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.flink</groupId>
+                <artifactId>flink-connector-base</artifactId>
+                <version>${flink.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.flink</groupId>
+                <artifactId>flink-connector-kafka</artifactId>
+                <version>${flink.kafka.connector.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.fasterxml.jackson</groupId>
