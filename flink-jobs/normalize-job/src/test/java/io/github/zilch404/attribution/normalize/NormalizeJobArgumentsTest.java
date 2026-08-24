@@ -129,7 +129,7 @@ class NormalizeJobArgumentsTest {
     }
 
     @Test
-    void requiresTimestampOnlyForTimestampStartMode() {
+    void requiresTimestampOnlyForTimestampStartMode() throws IOException {
         assertThatThrownBy(() -> NormalizeJobArguments.parse(append(
                         validArguments(),
                         "--start-timestamp-millis=1700000000000")))
