@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zilch404/game-attribution-engineering/identity-normalization-issue-v1.schema.json",
+  "title": "Game attribution identity normalization issue v1",
+  "description": "Safe per-identity diagnostic metadata without raw identity type or value.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "record_type", "source_position", "event_id",
+    "identity_index", "code"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "identity_normalization_issue"},
+    "source_position": {"$ref": "#/$defs/sourcePosition"},
+    "event_id": {"type": "string", "pattern": "^evt_v1_[A-Za-z0-9._:-]{1,121}$"},
+    "identity_index": {"type": "integer", "minimum": 0, "maximum": 15},
+    "code": {"enum": ["unsupported_identity_type", "invalid_identity_value", "duplicate_identity"]}
+  },
+  "$defs": {
+    "sourcePosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topic", "partition", "offset", "record_timestamp", "timestamp_type"],
+      "properties": {
+        "topic": {"type": "string", "minLength": 1},
+        "partition": {"type": "integer", "minimum": 0},
+        "offset": {"type": "integer", "minimum": 0},
+        "record_timestamp": {"type": "integer", "minimum": -1},
+        "timestamp_type": {"enum": ["CREATE_TIME", "LOG_APPEND_TIME", "NO_TIMESTAMP_TYPE"]}
+      }
+    }
+  }
+}

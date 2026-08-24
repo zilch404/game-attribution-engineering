@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zilch404/game-attribution-engineering/normalization-rejected-v1.schema.json",
+  "title": "Game attribution rejected normalization record v1",
+  "description": "Safe diagnostic metadata. Raw Kafka key, value, headers, and exception messages are forbidden.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "record_type", "source_position", "payload_size", "code", "safe_field"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "record_type": {"const": "rejected_record"},
+    "source_position": {"$ref": "#/$defs/sourcePosition"},
+    "payload_size": {"type": "integer", "minimum": 0},
+    "code": {
+      "enum": [
+        "null_key", "invalid_key_utf8", "null_value", "record_too_large",
+        "invalid_utf8", "malformed_json", "duplicate_json_field", "trailing_tokens",
+        "missing_field", "unknown_field", "type_mismatch", "unsupported_event_type",
+        "unsupported_schema_version", "topic_event_type_mismatch", "key_payload_mismatch",
+        "invariant_violation", "all_identities_invalid"
+      ]
+    },
+    "safe_field": {"type": "string", "pattern": "^[a-z0-9_.]{0,64}$"}
+  },
+  "$defs": {
+    "sourcePosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topic", "partition", "offset", "record_timestamp", "timestamp_type"],
+      "properties": {
+        "topic": {"type": "string", "minLength": 1},
+        "partition": {"type": "integer", "minimum": 0},
+        "offset": {"type": "integer", "minimum": 0},
+        "record_timestamp": {"type": "integer", "minimum": -1},
+        "timestamp_type": {"enum": ["CREATE_TIME", "LOG_APPEND_TIME", "NO_TIMESTAMP_TYPE"]}
+      }
+    }
+  }
+}

@@ -20,7 +20,7 @@
   ],
   "properties": {
     "schema_version": {"const": 1},
-    "event_id": {"$ref": "#/$defs/id"},
+    "event_id": {"$ref": "#/$defs/eventId"},
     "event_type": {"const": "activation"},
     "event_time": {"$ref": "#/$defs/epochMillis"},
     "ingest_time": {"$ref": "#/$defs/epochMillis"},
@@ -34,9 +34,9 @@
       "additionalProperties": false,
       "required": ["activation_id", "install_id", "identities"],
       "properties": {
-        "activation_id": {"$ref": "#/$defs/id"},
+        "activation_id": {"$ref": "#/$defs/activationId"},
         "install_id": {"$ref": "#/$defs/id"},
-        "direct_click_id": {"$ref": "#/$defs/id"},
+        "direct_click_id": {"$ref": "#/$defs/clickId"},
         "identities": {"$ref": "#/$defs/rawIdentities"}
       }
     }
@@ -46,6 +46,9 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
     },
+    "eventId": {"type": "string", "pattern": "^evt_v1_[A-Za-z0-9._:-]{1,121}$"},
+    "activationId": {"type": "string", "pattern": "^act_v1_[A-Za-z0-9._:-]{1,121}$"},
+    "clickId": {"type": "string", "pattern": "^clk_v1_[A-Za-z0-9._:-]{1,121}$"},
     "token": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"

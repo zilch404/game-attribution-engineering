@@ -126,6 +126,39 @@ class EventNormalizerTest {
     }
 
     @Test
+    void rejectsUnnamespacedBusinessIdsAndIdsCopiedFromRawIdentityValues() {
+        String unnamespacedClick = clickJson("""
+                [{"type":"oaid","value":"device-1"}]
+                """).replace("clk_v1_click-1", "raw-player-id");
+        RejectedRecord invalidClickId = rejected(normalizer.normalizeClick(
+                input(CLICK_TOPIC, "raw-player-id", unnamespacedClick), CLICK_TOPIC));
+        assertThat(invalidClickId.code()).isEqualTo(RejectionCode.INVARIANT_VIOLATION);
+        assertThat(invalidClickId.safeField()).isEqualTo("payload.click_id");
+
+        RejectedRecord copiedIdentity = rejected(normalizer.normalizeClick(
+                input(CLICK_TOPIC, "clk_v1_click-1", clickJson("""
+                        [{"type":"openid","value":"evt_v1_click-1"}]
+                        """)),
+                CLICK_TOPIC));
+        assertThat(copiedIdentity.code()).isEqualTo(RejectionCode.INVARIANT_VIOLATION);
+        assertThat(copiedIdentity.safeField()).isEqualTo("payload.identities");
+    }
+
+    @Test
+    void rejectsOverlappingActivationBusinessIdsWithoutThrowingAJobFailure() {
+        String overlappingInstallId = fixture("event-contract/v1/valid-activation.json")
+                .replace("\"install_id\": \"install-1\"",
+                        "\"install_id\": \"evt_v1_activation-1\"");
+
+        RejectedRecord rejection = rejected(normalizer.normalizeActivation(
+                input(ACTIVATION_TOPIC, "act_v1_activation-1", overlappingInstallId),
+                ACTIVATION_TOPIC));
+
+        assertThat(rejection.code()).isEqualTo(RejectionCode.INVARIANT_VIOLATION);
+        assertThat(rejection.safeField()).isEqualTo("payload.install_id");
+    }
+
+    @Test
     void classifiesDeterministicWireContractFailures() {
         assertRejected(
                 input(CLICK_TOPIC, "clk_v1_click-1", "{]"),

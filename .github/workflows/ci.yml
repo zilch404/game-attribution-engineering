@@ -24,3 +24,23 @@ jobs:
 
       - name: Verify
         run: ./mvnw -B -ntp clean verify
+
+      - name: Audit normalize job JAR
+        run: |
+          JOB_JAR=flink-jobs/normalize-job/target/normalize-job-0.1.0-SNAPSHOT-job.jar
+          test -f "$JOB_JAR"
+          unzip -p "$JOB_JAR" META-INF/MANIFEST.MF > "$RUNNER_TEMP/normalize-job.manifest"
+          tr -d '\r\n ' < "$RUNNER_TEMP/normalize-job.manifest" > "$RUNNER_TEMP/normalize-job.manifest.compact"
+          grep -q 'Main-Class:io.github.zilch404.attribution.normalize.NormalizeJobMain' "$RUNNER_TEMP/normalize-job.manifest.compact"
+          jar tf "$JOB_JAR" > "$RUNNER_TEMP/normalize-job.entries"
+          grep -q '^org/apache/flink/connector/kafka/sink/KafkaSink.class$' "$RUNNER_TEMP/normalize-job.entries"
+          grep -q '^org/apache/flink/connector/base/DeliveryGuarantee.class$' "$RUNNER_TEMP/normalize-job.entries"
+          grep -q '^com/fasterxml/jackson/core/JsonFactory.class$' "$RUNNER_TEMP/normalize-job.entries"
+          if grep -Eq '^org/apache/flink/(streaming/api/environment/StreamExecutionEnvironment|api/common/ExecutionConfig|runtime/jobgraph/JobGraph)\.class$' "$RUNNER_TEMP/normalize-job.entries"; then
+            echo 'Flink cluster APIs must remain provided, not bundled in the job JAR'
+            exit 1
+          fi
+          if grep -Eq '^(org/slf4j/impl/StaticLoggerBinder|org/apache/logging/slf4j/SLF4JServiceProvider|ch/qos/logback/classic/Logger|org/slf4j/simple/SimpleLogger)\.class$' "$RUNNER_TEMP/normalize-job.entries"; then
+            echo 'Logging implementations must be supplied by the Flink cluster'
+            exit 1
+          fi

@@ -14,6 +14,7 @@ public final class KafkaStartPosition implements Serializable {
     private static final long serialVersionUID = 1L;
 
     public enum Kind {
+        COMMITTED,
         COMMITTED_OR_EARLIEST,
         EARLIEST,
         TIMESTAMP
@@ -32,6 +33,11 @@ public final class KafkaStartPosition implements Serializable {
             throw new IllegalArgumentException("timestampMillis is only valid for TIMESTAMP");
         }
         this.timestampMillis = timestampMillis;
+    }
+
+    /** Starts only from committed offsets and fails if the group has none. */
+    public static KafkaStartPosition committed() {
+        return new KafkaStartPosition(Kind.COMMITTED, null);
     }
 
     public static KafkaStartPosition committedOrEarliest() {
@@ -61,6 +67,7 @@ public final class KafkaStartPosition implements Serializable {
 
     OffsetsInitializer toOffsetsInitializer() {
         return switch (kind) {
+            case COMMITTED -> OffsetsInitializer.committedOffsets();
             case COMMITTED_OR_EARLIEST ->
                     OffsetsInitializer.committedOffsets(OffsetResetStrategy.EARLIEST);
             case EARLIEST -> OffsetsInitializer.earliest();
