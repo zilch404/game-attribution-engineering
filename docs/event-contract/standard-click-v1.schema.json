@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zilch404/game-attribution-engineering/standard-click-v1.schema.json",
+  "title": "Game attribution standard click v1",
+  "description": "Deterministic click output. It contains versioned identity hashes and no raw identity values.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "event_id", "event_type", "event_time", "ingest_time",
+    "tenant_id", "game_id", "app_id", "source_system", "client_platform",
+    "source_position", "payload"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "event_id": {"$ref": "#/$defs/eventId"},
+    "event_type": {"const": "click"},
+    "event_time": {"$ref": "#/$defs/epochMillis"},
+    "ingest_time": {"$ref": "#/$defs/epochMillis"},
+    "tenant_id": {"$ref": "#/$defs/id"},
+    "game_id": {"$ref": "#/$defs/id"},
+    "app_id": {"$ref": "#/$defs/id"},
+    "source_system": {"$ref": "#/$defs/token"},
+    "client_platform": {"$ref": "#/$defs/token"},
+    "source_position": {"$ref": "#/$defs/sourcePosition"},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["click_id", "identities", "campaign", "eligible"],
+      "properties": {
+        "click_id": {"$ref": "#/$defs/clickId"},
+        "identities": {"$ref": "#/$defs/standardIdentities"},
+        "campaign": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["platform", "account_id", "campaign_id", "ad_group_id", "creative_id"],
+          "properties": {
+            "platform": {"$ref": "#/$defs/token"},
+            "account_id": {"type": "string", "minLength": 1, "maxLength": 128},
+            "campaign_id": {"type": "string", "maxLength": 128},
+            "ad_group_id": {"type": "string", "maxLength": 128},
+            "creative_id": {"type": "string", "maxLength": 128}
+          }
+        },
+        "eligible": {"type": "boolean"}
+      }
+    }
+  },
+  "$defs": {
+    "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "eventId": {"type": "string", "pattern": "^evt_v1_[A-Za-z0-9._:-]{1,121}$"},
+    "clickId": {"type": "string", "pattern": "^clk_v1_[A-Za-z0-9._:-]{1,121}$"},
+    "token": {"type": "string", "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"},
+    "epochMillis": {"type": "integer", "minimum": 946684800000, "exclusiveMaximum": 4102444800000},
+    "sourcePosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topic", "partition", "offset", "record_timestamp", "timestamp_type"],
+      "properties": {
+        "topic": {"type": "string", "minLength": 1},
+        "partition": {"type": "integer", "minimum": 0},
+        "offset": {"type": "integer", "minimum": 0},
+        "record_timestamp": {"type": "integer", "minimum": -1},
+        "timestamp_type": {"enum": ["CREATE_TIME", "LOG_APPEND_TIME", "NO_TIMESTAMP_TYPE"]}
+      }
+    },
+    "standardIdentities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "value_hash", "normalization_version", "key_version"],
+        "properties": {
+          "type": {"$ref": "#/$defs/token"},
+          "value_hash": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "normalization_version": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"},
+          "key_version": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"}
+        }
+      }
+    }
+  }
+}

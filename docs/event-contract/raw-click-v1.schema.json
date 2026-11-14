@@ -20,7 +20,7 @@
   ],
   "properties": {
     "schema_version": {"const": 1},
-    "event_id": {"$ref": "#/$defs/id"},
+    "event_id": {"$ref": "#/$defs/eventId"},
     "event_type": {"const": "click"},
     "event_time": {"$ref": "#/$defs/epochMillis"},
     "ingest_time": {"$ref": "#/$defs/epochMillis"},
@@ -34,7 +34,7 @@
       "additionalProperties": false,
       "required": ["click_id", "ad_platform", "identities", "campaign", "eligible"],
       "properties": {
-        "click_id": {"$ref": "#/$defs/id"},
+        "click_id": {"$ref": "#/$defs/clickId"},
         "ad_platform": {"$ref": "#/$defs/token"},
         "identities": {"$ref": "#/$defs/rawIdentities"},
         "campaign": {
@@ -57,6 +57,8 @@
       "type": "string",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
     },
+    "eventId": {"type": "string", "pattern": "^evt_v1_[A-Za-z0-9._:-]{1,121}$"},
+    "clickId": {"type": "string", "pattern": "^clk_v1_[A-Za-z0-9._:-]{1,121}$"},
     "token": {
       "type": "string",
       "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"

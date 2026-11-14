@@ -1,5 +1,6 @@
 package io.github.zilch404.attribution.kafka;
 
+import org.apache.kafka.clients.consumer.OffsetResetStrategy;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -67,6 +68,12 @@ class KafkaSourceSettingsTest {
 
     @Test
     void exposesOnlyExplicitSupportedStartPositions() {
+        assertThat(KafkaStartPosition.committed().kind())
+                .isEqualTo(KafkaStartPosition.Kind.COMMITTED);
+        assertThat(KafkaStartPosition.committed()
+                        .toOffsetsInitializer()
+                        .getAutoOffsetResetStrategy())
+                .isEqualTo(OffsetResetStrategy.NONE);
         assertThat(KafkaStartPosition.committedOrEarliest().kind())
                 .isEqualTo(KafkaStartPosition.Kind.COMMITTED_OR_EARLIEST);
         assertThat(KafkaStartPosition.earliest().kind())

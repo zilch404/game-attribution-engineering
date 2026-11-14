@@ -18,6 +18,7 @@
         <module>common/attribution-core</module>
         <module>connectors/click-index-spi</module>
         <module>connectors/kafka-ingress</module>
+        <module>connectors/kafka-egress</module>
         <module>flink-jobs/normalize-job</module>
         <module>flink-jobs/attribution-job</module>
         <module>tests/golden-tests</module>
@@ -35,8 +36,10 @@
         <jackson.bom.version>2.18.9</jackson.bom.version>
         <junit.bom.version>5.14.4</junit.bom.version>
         <assertj.version>3.27.7</assertj.version>
+        <json.schema.validator.version>2.0.4</json.schema.validator.version>
 
         <maven.compiler.plugin.version>3.15.0</maven.compiler.plugin.version>
+        <maven.shade.plugin.version>3.6.1</maven.shade.plugin.version>
         <maven.surefire.plugin.version>3.5.5</maven.surefire.plugin.version>
     </properties>
 

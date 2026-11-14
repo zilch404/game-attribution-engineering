@@ -14,25 +14,59 @@
 
 ## 当前实现
 
-当前实现已经包含两个可独立验收的垂直切片，不包含空壳连接器或无法运行的生产 Main：
+当前实现已经包含三个可独立验收的垂直切片，不包含空壳连接器：
 
 - `attribution-model`：不含原始 PII、带完整 source position 和身份版本的标准事件，以及供归因核心使用的窄模型；
 - `attribution-core`：纯 Java、确定性的 7 天 last-touch 归因核心；
 - `click-index-spi`：面向 Fluss 的存储无关异步候选查询接口；
 - `kafka-ingress`：Flink 2.2 Kafka Source、显式重放起点和完整 `ConsumerRecord` 元数据适配；
-- `normalize-job`：click/activation v1 严格 JSON 契约、可信身份策略、事件级标准化、事件时间保真和坏数据 Side Output；
+- `kafka-egress`：动态 Topic Kafka Record 适配和固定为 `EXACTLY_ONCE` 的事务 Sink；
+- `normalize-job`：click/activation v1 严格 JSON 契约、事件级标准化、四类显式 wire encoder、单一跨 Topic 事务 Sink 和可部署 Main；
 - `attribution-job`：携带当前决策的 Flink Async I/O 适配器和强制结果分流；
 - `golden-tests`：覆盖候选顺序、边界、重复、失败和稳定 tie-break 的归因黄金用例。
 
 Raw Kafka value 可以包含受限的原始身份，但标准事件只输出排序后的 scoped hash、`normalization_version` 和 `key_version`。当前规范化器使用 tenant/game/app scoped SHA-256 作为可运行占位实现；它仍属于 pseudonymous data，生产接入真实玩家标识前必须替换为由运行时密钥服务提供的 HMAC。
 
-当前 Kafka 切片只实现 Source、标准化流和隔离 Side Output。标准事件/隔离 Kafka Sink、事务提交和部署 Main 是下一步，不在本次用假实现占位。
+四类输出（标准点击、标准激活、拒绝记录、身份规范化问题）先编码成固定的 compact JSON，再汇入同一个 Kafka Sink。Sink 的每个并行 writer 可以在一个 Kafka 事务中写多个 Topic；下游必须使用 `isolation.level=read_committed`。这保证 Flink 从 Checkpoint 恢复时不会向这类消费者暴露未提交事务，但不等于上游业务去重，也不保证多个 Sink subtask 在全局同一瞬间可见。
+
+当前身份摘要仍是无密钥的学习占位实现。`NormalizeJobMain` 默认拒绝启动；只有非生产、非真实玩家数据才能显式设置 `--allow-placeholder-identity-hash=true`。生产接入前必须实现由密钥服务提供的 scoped HMAC，并升级 `key_version`。
 
 ```bash
 ./mvnw -B -ntp clean verify
 ```
 
-更多设计约束见 [`docs/adr/0001-module-boundaries.md`](docs/adr/0001-module-boundaries.md)、[`docs/adr/0002-kafka-ingress-and-replay.md`](docs/adr/0002-kafka-ingress-and-replay.md)、[`docs/event-contract/v1.md`](docs/event-contract/v1.md) 和 [`docs/attribution-rules/v1-last-touch.md`](docs/attribution-rules/v1-last-touch.md)。
+构建后的作业包位于：
+
+```text
+flink-jobs/normalize-job/target/normalize-job-0.1.0-SNAPSHOT-job.jar
+```
+
+学习环境启动示例（本地 Checkpoint 与占位身份摘要都必须显式放行）：
+
+```bash
+bin/flink run --detached \
+  -c io.github.zilch404.attribution.normalize.NormalizeJobMain \
+  flink-jobs/normalize-job/target/normalize-job-0.1.0-SNAPSHOT-job.jar \
+  --bootstrap-servers=kafka:9092 \
+  --raw-click-topic=game-attribution.raw.click.v1 \
+  --raw-activation-topic=game-attribution.raw.activation.v1 \
+  --click-group-id=gae-normalize-click-learning-v1 \
+  --activation-group-id=gae-normalize-activation-learning-v1 \
+  --start-position=earliest \
+  --standard-click-topic=game-attribution.standard.click.v1 \
+  --standard-activation-topic=game-attribution.standard.activation.v1 \
+  --invalid-topic=game-attribution.normalization.invalid.v1 \
+  --identity-issue-topic=game-attribution.normalization.identity-issue.v1 \
+  --transactional-id-prefix=gae-normalize-learning-v1- \
+  --checkpoint-storage=file:///var/lib/flink/checkpoints/normalize-v1 \
+  --parallelism=2 \
+  --allow-local-checkpoint-storage=true \
+  --allow-placeholder-identity-hash=true
+```
+
+生产默认使用 `start-position=committed`：消费组没有已提交 offset 时直接失败，避免 group 拼错后静默全量重放。`earliest`、`timestamp` 和 `committed-or-earliest` 只用于显式 bootstrap/replay。生产环境必须使用 HDFS/S3 等持久 Checkpoint URI，并为每个并发部署分配稳定且唯一的 `transactional-id-prefix`。`transaction-timeout-ms` 必须严格大于 `checkpoint-timeout-ms + max-recovery-duration-ms`，同时 Kafka broker 的 `transaction.max.timeout.ms` 也要允许该值。`max-recovery-duration-ms` 是部署方声明并监控的恢复 SLO，必须覆盖调度、重启和状态恢复的最坏情况，作业本身无法强制实际恢复一定在此时间内完成。SASL/SSL 等配置通过只读的 `--kafka-properties-file` 挂载，文件键使用 `common.`、`consumer.` 或 `producer.` 前缀；不要把密码写入命令行。
+
+更多设计约束见 [`docs/adr/0001-module-boundaries.md`](docs/adr/0001-module-boundaries.md)、[`docs/adr/0002-kafka-ingress-and-replay.md`](docs/adr/0002-kafka-ingress-and-replay.md)、[`docs/adr/0003-kafka-egress-and-normalize-runtime.md`](docs/adr/0003-kafka-egress-and-normalize-runtime.md)、[`docs/event-contract/v1.md`](docs/event-contract/v1.md) 和 [`docs/attribution-rules/v1-last-touch.md`](docs/attribution-rules/v1-last-touch.md)。
 
 ## 业务目标
 
@@ -274,7 +308,8 @@ Fluss 保存的是窄索引。完整广告请求、平台回调和扩展字段�
 │   └── attribution-core/     # 确定性 last-touch 纯函数
 ├── connectors/
 │   ├── click-index-spi/      # 存储无关的异步候选查询端口
-│   └── kafka-ingress/        # Kafka Source 与 ConsumerRecord 元数据
+│   ├── kafka-ingress/        # Kafka Source 与 ConsumerRecord 元数据
+│   └── kafka-egress/         # 动态 Topic EXACTLY_ONCE Kafka Sink
 ├── flink-jobs/
 │   ├── normalize-job/        # 身份规范化与坏数据 Side Output
 │   └── attribution-job/      # Flink Async I/O 适配器
@@ -287,7 +322,7 @@ Fluss 保存的是窄索引。完整广告请求、平台回调和扩展字段�
 └── .github/workflows/ci.yml
 ```
 
-Kafka 标准事件 Sink、Fluss、Paimon、StarRocks、CDC、修正作业和本地全栈环境会在对应阶段加入；当前不创建没有实现和测试的空模块。
+Fluss、Paimon、StarRocks、CDC、修正作业和本地全栈环境会在对应阶段加入；当前不创建没有实现和测试的空模块。
 
 ## 官方资料
 

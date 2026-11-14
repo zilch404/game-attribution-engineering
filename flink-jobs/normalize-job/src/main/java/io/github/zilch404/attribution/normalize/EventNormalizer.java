@@ -22,13 +22,10 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -86,7 +83,8 @@ public final class EventNormalizer implements Serializable {
             JsonNode payload = envelope.payload();
             rejectUnknownFields(payload, CLICK_FIELDS, "payload");
 
-            String clickId = requireIdentifier(payload, "click_id", "payload.click_id");
+            String clickId = requirePrefixedIdentifier(
+                    payload, "click_id", "payload.click_id", "clk_v1_");
             validateKafkaKey(record, clickId);
             String adPlatform = requireToken(
                     payload, "ad_platform", "payload.ad_platform");
@@ -94,7 +92,8 @@ public final class EventNormalizer implements Serializable {
                     payload,
                     envelope.scope(),
                     envelope.metadata().eventId(),
-                    record.sourcePosition());
+                    record.sourcePosition(),
+                    Set.of(envelope.metadata().eventId(), clickId));
 
             JsonNode campaignNode = requireObject(payload, "campaign", "payload.campaign");
             rejectUnknownFields(campaignNode, CAMPAIGN_FIELDS, "payload.campaign");
@@ -135,17 +134,27 @@ public final class EventNormalizer implements Serializable {
             JsonNode payload = envelope.payload();
             rejectUnknownFields(payload, ACTIVATION_FIELDS, "payload");
 
-            String activationId = requireIdentifier(
-                    payload, "activation_id", "payload.activation_id");
+            String activationId = requirePrefixedIdentifier(
+                    payload, "activation_id", "payload.activation_id", "act_v1_");
             validateKafkaKey(record, activationId);
             String installId = requireIdentifier(payload, "install_id", "payload.install_id");
-            String directClickId = optionalIdentifier(
-                    payload, "direct_click_id", "payload.direct_click_id");
+            String directClickId = optionalPrefixedIdentifier(
+                    payload, "direct_click_id", "payload.direct_click_id", "clk_v1_");
+            Set<String> protectedIdentifiers = new HashSet<>();
+            protectedIdentifiers.add(envelope.metadata().eventId());
+            protectedIdentifiers.add(activationId);
+            if (!protectedIdentifiers.add(installId)) {
+                throw reject(RejectionCode.INVARIANT_VIOLATION, "payload.install_id");
+            }
+            if (!directClickId.isEmpty() && !protectedIdentifiers.add(directClickId)) {
+                throw reject(RejectionCode.INVARIANT_VIOLATION, "payload.direct_click_id");
+            }
             IdentityResult identityResult = normalizeIdentities(
                     payload,
                     envelope.scope(),
                     envelope.metadata().eventId(),
-                    record.sourcePosition());
+                    record.sourcePosition(),
+                    protectedIdentifiers);
 
             return new NormalizationOutcome.Accepted<>(
                     new StandardActivationEvent(
@@ -201,7 +210,8 @@ public final class EventNormalizer implements Serializable {
         }
         rejectUnknownFields(root, ENVELOPE_FIELDS, "envelope");
 
-        String eventId = requireIdentifier(root, "event_id", "event_id");
+        String eventId = requirePrefixedIdentifier(
+                root, "event_id", "event_id", "evt_v1_");
         long eventTimeMillis = requireLong(root, "event_time", "event_time");
         long ingestTimeMillis = requireLong(root, "ingest_time", "ingest_time");
         validateTimes(eventTimeMillis, ingestTimeMillis);
@@ -231,7 +241,8 @@ public final class EventNormalizer implements Serializable {
             JsonNode payload,
             AttributionScope scope,
             String eventId,
-            io.github.zilch404.attribution.model.SourcePosition sourcePosition) {
+            io.github.zilch404.attribution.model.SourcePosition sourcePosition,
+            Set<String> protectedIdentifiers) {
         JsonNode identitiesNode = payload.get("identities");
         if (identitiesNode == null) {
             throw reject(RejectionCode.MISSING_FIELD, "payload.identities");
@@ -262,6 +273,9 @@ public final class EventNormalizer implements Serializable {
             }
             String rawType = typeNode.textValue();
             String rawValue = valueNode.textValue();
+            if (protectedIdentifiers.contains(rawValue)) {
+                throw reject(RejectionCode.INVARIANT_VIOLATION, "payload.identities");
+            }
             if (rawValue.length() > MAX_IDENTITY_VALUE_LENGTH) {
                 issues.add(issue(
                         sourcePosition, eventId, index, IdentityIssueCode.INVALID_IDENTITY_VALUE));
@@ -420,11 +434,27 @@ public final class EventNormalizer implements Serializable {
         return value;
     }
 
-    private static String optionalIdentifier(JsonNode parent, String name, String safeField) {
+    private static String requirePrefixedIdentifier(
+            JsonNode parent,
+            String name,
+            String safeField,
+            String prefix) {
+        String value = requireIdentifier(parent, name, safeField);
+        if (!value.startsWith(prefix) || value.length() == prefix.length()) {
+            throw reject(RejectionCode.INVARIANT_VIOLATION, safeField);
+        }
+        return value;
+    }
+
+    private static String optionalPrefixedIdentifier(
+            JsonNode parent,
+            String name,
+            String safeField,
+            String prefix) {
         if (!parent.has(name)) {
             return "";
         }
-        return requireIdentifier(parent, name, safeField);
+        return requirePrefixedIdentifier(parent, name, safeField, prefix);
     }
 
     private static String requireToken(JsonNode parent, String name, String safeField) {
@@ -511,19 +541,9 @@ public final class EventNormalizer implements Serializable {
         byte[] safeValue = value == null ? new byte[0] : value;
         return new RejectedRecord(
                 record.sourcePosition(),
-                sha256(safeValue),
                 safeValue.length,
                 rejection.code,
                 rejection.safeField);
-    }
-
-    private static String sha256(byte[] bytes) {
-        try {
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is not available", exception);
-        }
     }
 
     private static DataRejection reject(RejectionCode code, String safeField) {

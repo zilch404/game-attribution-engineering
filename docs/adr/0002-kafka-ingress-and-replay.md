@@ -16,7 +16,7 @@
 5. raw 身份值在标准化后立即转换成带版本的 scoped hash；canonicalization、`normalization_version` 与 `key_version` 绑定为不可拆分的规则，任何语义或密钥变化都必须升级版本。标准事件使用排序 List。`toCoreEvent()` 只提供现有窄 `ClickEvent` / `ActivationEvent` 评分视图，调用者必须保留标准激活中的 `install_id` 和 `direct_click_id` 用于查询与物化。
 6. 已知数据错误进入结构化隔离 Side Output；下游 Collector 或框架异常不能被误分类成坏数据。
 7. 标准化作业无状态且不生成 Watermark。后续从 standard Topic 读取时，在 Kafka Source 内从 payload `event_time` 分配每分区 Watermark；不能使用 Kafka timestamp，也不能等分区合并后再统一生成。
-8. 起始 offset 必须显式配置。生产从 committed-or-earliest 启动；重放使用新 group ID 加 earliest 或 timestamp。
+8. 生产默认只从 committed offset 启动，group 没有 offset 时 fail fast；bootstrap/replay 才显式使用新 group ID 加 earliest、timestamp 或 committed-or-earliest。
 9. Source 强制 `read_committed`、关闭 Kafka auto commit，并要求拓扑在 attach 前启用 Flink Checkpoint；每个 Source 用其独立 group ID 作为 `client.id.prefix`，避免 JMX/指标冲突。
 
 依赖方向：
